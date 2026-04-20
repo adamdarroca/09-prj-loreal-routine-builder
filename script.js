@@ -2,8 +2,10 @@
 const categoryFilter = document.getElementById("categoryFilter");
 const productsContainer = document.getElementById("productsContainer");
 const selectedProductsContainer = document.getElementById("selectedProductsContainer");
+const generateRoutineButton = document.getElementById("generateRoutine");
 const chatForm = document.getElementById("chatForm");
 const chatWindow = document.getElementById("chatWindow");
+const userInput = document.getElementById("userInput");
 let selectedProducts = [];
 
 /* Show initial placeholder until user selects a category */
@@ -20,11 +22,6 @@ async function loadProducts() {
   return data.products;
 }
 
-async function loadSelectedProducts() {
-  const response = await fetch("selected-products.json");
-  const data = await response.json();
-  return data.selectedproducts;
-}
 
 /* Create HTML for displaying product cards inside Products Container */
 function displayProducts(products) {
@@ -114,8 +111,47 @@ selectedProductsContainer.addEventListener("click", async (e) => {
 });
 
 
-/* Chat form submission handler - placeholder for OpenAI integration */
-chatForm.addEventListener("submit", (e) => {
+/**
+ * Handle form submission when user sends a message in the chat interface.
+ */
+chatForm.addEventListener("submit", async (e) => {
   e.preventDefault();
-  chatWindow.innerHTML = "Connect to the OpenAI API for a response!";
+
+  const text = userInput.value.trim();
+  if (!text) return;
+  addUserMessage(text);
+  appendMessage("user", text);
+  userInput.value = "";
+  setLoading(true);
+
+  try{
+    trimMessages(12);
+    const reply = await sendToChatBot();
+    appendMessage("assistant", reply);
+    addAssistantMessage(reply);
+  } catch (error) {
+    console.error("Error:", error);
+    appendMessage("assistant", "Sorry, something went wrong. Please try again later.");
+    setStatus("Connection problem.");
+  } finally {
+    setLoading(false);
+  }
+});
+
+/**
+ * Handles submission to generate the routine based on the products the user has selected. It sends the selected products to the worker and displays the generated routine in the chat window.
+ */
+generateRoutine.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const routineReply = await sendSelectedProducts();
+  if(selectedProducts.isEmpty){
+    appendMessage("assistant", "Please select some products to generate a routine.");
+    return;
+  }
+  addUserMessage(`Generate a beauty routine using the selected products: ${JSON.stringify(selectedProducts)}`);
+  appendMessage("user", `Generate a beauty routine using the selected products: ${JSON.stringify(selectedProducts)}`);
+  appendMessage("assistant", routineReply);
+  addAssistantMessage(routineReply);
+  setLoading(true);
+
 });
