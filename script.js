@@ -1,12 +1,36 @@
 /* Get references to DOM elements */
 const categoryFilter = document.getElementById("categoryFilter");
 const productsContainer = document.getElementById("productsContainer");
-const selectedProductsContainer = document.getElementById("selectedProductsContainer");
-const generateRoutineButton = document.getElementById("generateRoutine");
+const selectedProductsContainer = document.getElementById(
+  "selectedProductsContainer",
+);
+const removeAllBtn = document.getElementById("removeAllBtn");
+const generateRoutine = document.getElementById("generateRoutine");
 const chatForm = document.getElementById("chatForm");
 const chatWindow = document.getElementById("chatWindow");
 const userInput = document.getElementById("userInput");
-let selectedProducts = [];
+const SELECTED_ITEMS_KEY = "selectedItems";
+
+/* Save selected items in localStorage so they persist after refresh */
+function saveSelectedItems(items) {
+  localStorage.setItem(SELECTED_ITEMS_KEY, JSON.stringify(items));
+}
+
+/* Load selected items from localStorage when the page opens */
+function loadSelectedItems() {
+  const storedItems = localStorage.getItem(SELECTED_ITEMS_KEY);
+  if (!storedItems) return [];
+
+  try {
+    const parsedItems = JSON.parse(storedItems);
+    return Array.isArray(parsedItems) ? parsedItems : [];
+  } catch (error) {
+    console.error("Could not read selected items from localStorage:", error);
+    return [];
+  }
+}
+
+let selectedProducts = loadSelectedItems();
 
 /* Show initial placeholder until user selects a category */
 productsContainer.innerHTML = `
@@ -22,7 +46,6 @@ async function loadProducts() {
   return data.products;
 }
 
-
 /* Create HTML for displaying product cards inside Products Container */
 function displayProducts(products) {
   productsContainer.innerHTML = products
@@ -36,9 +59,28 @@ function displayProducts(products) {
       </div>
       <button class="add-product-btn">ADD PRODUCT</button>
     </div>
-  `
+  `,
     )
     .join("");
+
+  syncProductStackCards();
+}
+
+/* Keep product cards in sync with selected items state */
+function syncProductStackCards() {
+  const selectedIds = new Set(selectedProducts.map((product) => product.id));
+  const stackCards = productsContainer.querySelectorAll(".product-card");
+
+  stackCards.forEach((card) => {
+    const cardId = Number(card.dataset.id);
+    const addButton = card.querySelector(".add-product-btn");
+    if (!addButton) return;
+
+    const isAdded = selectedIds.has(cardId);
+    card.classList.toggle("is-added", isAdded);
+    addButton.disabled = isAdded;
+    addButton.textContent = isAdded ? "PRODUCT ADDED" : "ADD PRODUCT";
+  });
 }
 
 function displaySelectedProducts(selectedProducts) {
@@ -53,10 +95,13 @@ function displaySelectedProducts(selectedProducts) {
       </div>
       <button class="remove-product-btn">Remove</button>
     </div>
-  `
+  `,
     )
     .join("");
 }
+
+/* Show saved selected items right away when page loads */
+displaySelectedProducts(selectedProducts);
 
 /* Filter and display products when category changes */
 categoryFilter.addEventListener("change", async (e) => {
@@ -65,13 +110,11 @@ categoryFilter.addEventListener("change", async (e) => {
   /* filter() creates a new array containing only products 
      where the category matches what the user selected */
   const filteredProducts = products.filter(
-    (product) => product.category === selectedCategory
+    (product) => product.category === selectedCategory,
   );
 
   displayProducts(filteredProducts);
 });
-
-
 
 /**
  * Display products inside of selected-products container when user clicks on the toggle button in Products Container
@@ -82,15 +125,19 @@ productsContainer.addEventListener("click", async (e) => {
     const productCard = e.target.closest(".product-card");
     const productId = Number(productCard.dataset.id);
     const selectedProduct = products.find(
-      (product) => product.id === productId
+      (product) => product.id === productId,
     );
-    const alreadySelected = selectedProducts.some((p) => p.id === selectedProduct.id);
+    const alreadySelected = selectedProducts.some(
+      (p) => p.id === selectedProduct.id,
+    );
     if (!alreadySelected) {
       selectedProducts.push(selectedProduct);
+      saveSelectedItems(selectedProducts);
     } else {
       return;
     }
     displaySelectedProducts(selectedProducts);
+    syncProductStackCards();
   }
 });
 
@@ -99,17 +146,25 @@ productsContainer.addEventListener("click", async (e) => {
  */
 selectedProductsContainer.addEventListener("click", async (e) => {
   if (e.target.classList.contains("remove-product-btn")) {
-    const products = await loadProducts();
     const productCard = e.target.closest(".product-card");
     const productId = Number(productCard.dataset.id);
     const unwantedProduct = selectedProducts.find((p) => p.id === productId);
-    if (unwantedProduct){
+    if (unwantedProduct) {
       selectedProducts = selectedProducts.filter((p) => p.id !== productId);
+      saveSelectedItems(selectedProducts);
     }
     displaySelectedProducts(selectedProducts);
+    syncProductStackCards();
   }
 });
 
+/* Clear all selected products and reset product cards */
+removeAllBtn.addEventListener("click", () => {
+  selectedProducts = [];
+  saveSelectedItems(selectedProducts);
+  displaySelectedProducts(selectedProducts);
+  syncProductStackCards();
+});
 
 /**
  * Handle form submission when user sends a message in the chat interface.
@@ -124,34 +179,51 @@ chatForm.addEventListener("submit", async (e) => {
   userInput.value = "";
   setLoading(true);
 
-  try{
+  try {
     trimMessages(12);
     const reply = await sendToChatBot();
+    setLoading(false);
     appendMessage("assistant", reply);
     addAssistantMessage(reply);
   } catch (error) {
     console.error("Error:", error);
-    appendMessage("assistant", "Sorry, something went wrong. Please try again later.");
-    setStatus("Connection problem.");
-  } finally {
     setLoading(false);
+    appendMessage(
+      "assistant",
+      "Sorry, something went wrong. Please try again later.",
+    );
+    setStatus("Connection problem.");
   }
 });
 
 /**
  * Handles submission to generate the routine based on the products the user has selected. It sends the selected products to the worker and displays the generated routine in the chat window.
  */
-generateRoutine.addEventListener("submit", async (e) => {
+generateRoutine.addEventListener("click", async (e) => {
   e.preventDefault();
-  const routineReply = await sendSelectedProducts();
-  if(selectedProducts.isEmpty){
-    appendMessage("assistant", "Please select some products to generate a routine.");
-    return;
+  if (selectedProducts.length === 0) {
+    return "Please select some products to generate a routine.";
   }
-  addUserMessage(`Generate a beauty routine using the selected products: ${JSON.stringify(selectedProducts)}`);
-  appendMessage("user", `Generate a beauty routine using the selected products: ${JSON.stringify(selectedProducts)}`);
-  appendMessage("assistant", routineReply);
-  addAssistantMessage(routineReply);
+  const productSummary = selectedProducts
+    .map((p) => `${p.name} (${p.category})`)
+    .join("\n");
+  const routinePrompt = `Generate a beauty routine using the selected products:\n${productSummary}`;
+  addUserMessage(routinePrompt);
+  appendMessage("user", routinePrompt);
   setLoading(true);
-
+  try {
+    trimMessages(12);
+    const routineReply = await sendSelectedProducts(selectedProducts);
+    addAssistantMessage(routineReply);
+    setLoading(false);
+    appendMessage("assistant", routineReply);
+  } catch (error) {
+    console.error("Error:", error);
+    setLoading(false);
+    appendMessage(
+      "assistant",
+      "Sorry, something went wrong. Please try again later.",
+    );
+    setStatus("Connection problem.");
+  }
 });

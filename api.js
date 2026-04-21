@@ -24,15 +24,13 @@ async function sendToChatBot() {
   return botReply;
 }
 
-async function sendSelectedProducts() {
-  const routineResponse = await loadSelectedProducts(APP_CONFIG.workerUrl, {
+async function sendSelectedProducts(selectedProducts) {
+  const routineResponse = await fetch(APP_CONFIG.workerUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({
-      messages: getMessages();
-    }),
+    body: JSON.stringify({messages}),
   });
   if(!routineResponse.ok){
     throw new Error(`Worker failed with status ${routineResponse.status}`);

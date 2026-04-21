@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -45,11 +45,13 @@
       <!-- Selected Products -->
       <h2>Selected Products</h2>
       <div id="selectedProductsContainer" class="selected-products"></div>
-         <!-- Selected products will be displayed here -->
-      <button id="generateRoutine" class="generate-btn">
-          <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Routine
+      <button id="removeAllBtn" class="remove-all-btn" type="button">
+        Remove All
       </button>
-    
+      <!-- Selected products will be displayed here -->
+      <button id="generateRoutine" class="generate-btn">
+        <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Routine
+      </button>
 
       <!------- Chat Area ------->
       <section class="chatbox">
@@ -86,8 +88,10 @@
     </div>
 
     <!-- secrets.js can be removed when using Cloudflare Workers for API requests -->
+    <script src="config.js"></script>
     <script src="ui.js"></script>
-    <script src="secrets.js"></script>
+    <script src="chat.js"></script>
+    <script src="api.js"></script>
     <script src="script.js"></script>
   </body>
 </html>
