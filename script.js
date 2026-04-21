@@ -31,6 +31,7 @@ function loadSelectedItems() {
 }
 
 let selectedProducts = loadSelectedItems();
+let activeModalProductId = null;
 
 /* Show initial placeholder until user selects a category */
 productsContainer.innerHTML = `
@@ -81,6 +82,112 @@ function syncProductStackCards() {
     addButton.disabled = isAdded;
     addButton.textContent = isAdded ? "PRODUCT ADDED" : "ADD PRODUCT";
   });
+
+  syncModalAddButtonState();
+}
+
+/* Create one modal and insert it inside the products container */
+function ensureProductModal() {
+  let modal = document.getElementById("productDetailsModal");
+  if (modal) return modal;
+
+  modal = document.createElement("div");
+  modal.id = "productDetailsModal";
+  modal.className = "product-modal hidden";
+  modal.innerHTML = `
+    <div class="product-modal-content" role="dialog" aria-modal="true" aria-labelledby="modalProductTitle">
+      <button class="product-modal-close" type="button" aria-label="Close product details">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      <img id="modalProductImage" src="" alt="">
+      <h2 id="modalProductTitle"></h2>
+      <p id="modalProductCategory" class="product-modal-category"></p>
+      <p id="modalProductDescription" class="product-modal-description"></p>
+      <div class="product-modal-actions">
+        <button id="modalAddProductBtn" class="product-modal-add-btn" type="button">ADD PRODUCT</button>
+      </div>
+    </div>
+  `;
+
+  productsContainer.appendChild(modal);
+
+  const closeModalBtn = modal.querySelector(".product-modal-close");
+  closeModalBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeProductModal();
+  });
+
+  modal.addEventListener("click", (event) => {
+    if (event.target === modal) {
+      closeProductModal();
+    }
+  });
+
+  const modalAddProductBtn = modal.querySelector("#modalAddProductBtn");
+  modalAddProductBtn.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (activeModalProductId === null) return;
+
+    const products = await loadProducts();
+    const selectedProduct = products.find((p) => p.id === activeModalProductId);
+    const alreadySelected = selectedProducts.some(
+      (p) => p.id === activeModalProductId,
+    );
+
+    if (selectedProduct && !alreadySelected) {
+      selectedProducts.push(selectedProduct);
+      saveSelectedItems(selectedProducts);
+      displaySelectedProducts(selectedProducts);
+      syncProductStackCards();
+    }
+
+    closeProductModal();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeProductModal();
+    }
+  });
+
+  return modal;
+}
+
+function openProductModal(product) {
+  const modal = ensureProductModal();
+  modal.querySelector("#modalProductImage").src = product.image;
+  modal.querySelector("#modalProductImage").alt = product.name;
+  modal.querySelector("#modalProductTitle").textContent = product.name;
+  modal.querySelector("#modalProductCategory").textContent =
+    `Category: ${product.category}`;
+  modal.querySelector("#modalProductDescription").textContent =
+    product.description || "No description available for this product.";
+
+  activeModalProductId = product.id;
+  syncModalAddButtonState();
+  modal.classList.remove("hidden");
+}
+
+function closeProductModal() {
+  const modal = document.getElementById("productDetailsModal");
+  if (!modal) return;
+
+  modal.classList.add("hidden");
+  activeModalProductId = null;
+}
+
+function syncModalAddButtonState() {
+  const modalAddBtn = document.getElementById("modalAddProductBtn");
+  if (!modalAddBtn || activeModalProductId === null) return;
+
+  const alreadySelected = selectedProducts.some(
+    (p) => p.id === activeModalProductId,
+  );
+  modalAddBtn.disabled = alreadySelected;
+  modalAddBtn.textContent = alreadySelected ? "PRODUCT ADDED" : "ADD PRODUCT";
 }
 
 function displaySelectedProducts(selectedProducts) {
@@ -120,9 +227,11 @@ categoryFilter.addEventListener("change", async (e) => {
  * Display products inside of selected-products container when user clicks on the toggle button in Products Container
  */
 productsContainer.addEventListener("click", async (e) => {
-  if (e.target.classList.contains("add-product-btn")) {
+  const addButton = e.target.closest(".add-product-btn");
+  if (addButton) {
     const products = await loadProducts();
-    const productCard = e.target.closest(".product-card");
+    const productCard = addButton.closest(".product-card");
+    if (!productCard) return;
     const productId = Number(productCard.dataset.id);
     const selectedProduct = products.find(
       (product) => product.id === productId,
@@ -138,6 +247,19 @@ productsContainer.addEventListener("click", async (e) => {
     }
     displaySelectedProducts(selectedProducts);
     syncProductStackCards();
+
+    return;
+  }
+
+  const productCard = e.target.closest("#productStack.product-card");
+  if (!productCard) return;
+
+  const productId = Number(productCard.dataset.id);
+  const products = await loadProducts();
+  const selectedProduct = products.find((product) => product.id === productId);
+
+  if (selectedProduct) {
+    openProductModal(selectedProduct);
   }
 });
 
