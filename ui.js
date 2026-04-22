@@ -1,11 +1,65 @@
 let typingIndicatorRow = null;
 
+function escapeHtml(text) {
+  if (typeof text !== "string") {
+    return "";
+  }
+
+  return text
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function sanitizeAssistantHtml(rawHtml) {
+  const allowedTags = new Set([
+    "p",
+    "br",
+    "strong",
+    "em",
+    "ul",
+    "ol",
+    "li",
+    "h3",
+  ]);
+
+  const template = document.createElement("template");
+  template.innerHTML = rawHtml;
+
+  const allNodes = template.content.querySelectorAll("*");
+  allNodes.forEach((node) => {
+    const tagName = node.tagName.toLowerCase();
+
+    if (!allowedTags.has(tagName)) {
+      const textNode = document.createTextNode(node.textContent || "");
+      node.replaceWith(textNode);
+      return;
+    }
+
+    // Remove all attributes from allowed tags.
+    while (node.attributes.length > 0) {
+      node.removeAttribute(node.attributes[0].name);
+    }
+  });
+
+  return template.innerHTML.trim();
+}
+
 function formatAssistantMessage(text) {
   if (typeof text !== "string") {
     return "";
   }
 
-  return text.replace(/(\d+\.)\s*/g, "\n$1 ").trim();
+  const trimmedText = text.trim();
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(trimmedText);
+
+  if (looksLikeHtml) {
+    return sanitizeAssistantHtml(trimmedText);
+  }
+
+  return `<p>${escapeHtml(trimmedText)}</p>`;
 }
 
 function appendMessage(role, text) {
@@ -16,8 +70,12 @@ function appendMessage(role, text) {
 
   const msgBubble = document.createElement("div");
   msgBubble.className = `msg ${role}`;
-  msgBubble.textContent =
-    role === "assistant" ? formatAssistantMessage(text) : text;
+
+  if (role === "assistant") {
+    msgBubble.innerHTML = formatAssistantMessage(text);
+  } else {
+    msgBubble.textContent = text;
+  }
 
   row.appendChild(msgBubble);
   chatWindow.appendChild(row);

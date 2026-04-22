@@ -118,6 +118,25 @@ body {
   border-bottom-left-radius: 6px;
 }
 
+.msg.assistant p,
+.msg.assistant h3,
+.msg.assistant ol,
+.msg.assistant ul {
+  margin: 0 0 10px;
+}
+
+.msg.assistant p:last-child,
+.msg.assistant h3:last-child,
+.msg.assistant ol:last-child,
+.msg.assistant ul:last-child {
+  margin-bottom: 0;
+}
+
+.msg.assistant ol,
+.msg.assistant ul {
+  padding-left: 20px;
+}
+
 .msg.user::after,
 .msg.assistant::after {
   content: "";
